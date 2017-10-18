@@ -48,7 +48,6 @@ Does the above configuration look correct?: (Y/N): y
 File saved to: /home/dan/.DH_DNS_Config!
 No action provided! Running once to update all domains!
 WAN IP: YOUR_WAN_IP
-Checking domains for API key: API_KEY1
 Checking: domain1.tld
 domain1.tld A record: YOUR_WAN_IP
 Checking: domain2.tld
@@ -74,6 +73,10 @@ end.parse!
 class DNSUpdater
   def initialize(api_key)
     @api_url = "https://api.dreamhost.com/?key=#{api_key}"
+  end
+
+  def version
+    version = '1.0.0'
   end
 
   # Creates a new DNS Updater config file
@@ -191,7 +194,6 @@ class Daemon
     puts "WAN IP: #{wan_ip}"
     @conns.each_key do |api_key|
       dns = DNSUpdater.new(api_key)
-      puts "Checking domains for API key: #{api_key}"
       domains = @conns[api_key][:domains]
 
       domains.each do |record, type|

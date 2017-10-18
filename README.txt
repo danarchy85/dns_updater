@@ -35,7 +35,6 @@ Does the above configuration look correct?: (Y/N): y
 File saved to: /home/dan/.DH_DNS_Config!
 No action provided! Running once to update all domains!
 WAN IP: YOUR_WAN_IP
-Checking domains for API key: API_KEY1
 Checking: domain1.tld
 domain1.tld A record: YOUR_WAN_IP
 Checking: domain2.tld
