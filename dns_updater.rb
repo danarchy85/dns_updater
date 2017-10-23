@@ -3,6 +3,15 @@ require 'net/http'
 require 'optparse'
 require 'yaml'
 
+=begin
+
+Need to add an exeption handler for runaway requests:
+
+dns.pull_live_records
+=> {"data"=>"slow_down_bucko", "reason"=>"rate error: module dns used more than 100 times in 1 hour(s)", "result"=>"error"}
+
+=end
+
 @usage = %Q[
 Run without an argument to run DNS Updater once for configured domains.
 Run with [start] to run as a daemon with a 30 minute update interval.
@@ -75,8 +84,8 @@ class DNSUpdater
     @api_url = "https://api.dreamhost.com/?key=#{api_key}"
   end
 
-  def version
-    version = '1.0.0'
+  def self.version
+    version = '1.1.0'
   end
 
   # Creates a new DNS Updater config file
@@ -84,7 +93,7 @@ class DNSUpdater
     puts 'Configuration not found. Creating a new one!'
     puts 'Only A records are supported at this time.'
 
-    config = { pidfile: '/tmp/dnsupdater.pid', connections: {} }
+    config = { pidfile: '/tmp/dnsupdater.pid', log: '/tmp/dnsupdater.log', connections: {} }
     newacct = 'y'
 
     until newacct =~ /^n(o)?$/i
@@ -130,13 +139,14 @@ Ex: domain1.tld,domain2.tld: "
   end
 
   # Returns a hash of DNS record values
-  def get_record(record, type)
-    domain_record = 'nil'
-
-    pull_live_records['data'].each do |r|
-      domain_record = r if r['record'] == record && r['type'] == type
+  def get_record(live_records, record, type)
+    domain_record = nil
+    
+    live_records['data'].each do |r|
+        domain_record = r if r['record'] == record && r['type'] == type
     end
 
+    return false if domain_record == nil
     domain_record
   end
 
@@ -161,6 +171,7 @@ class Daemon
   def initialize(config)
     @conns = config[:connections]
     @pidfile = config[:pidfile]
+    @log = config[:log]
   end
   
   def status
@@ -187,18 +198,25 @@ class Daemon
     wan_ip = Net::HTTP.get URI 'https://api.ipify.org'
 
     if wan_ip !~ /^[0-9].*$/
-      puts 'WAN IP not found!'
-      return 1
+
+      return [1, 'WAN IP not found!']
     end
 
     puts "WAN IP: #{wan_ip}"
     @conns.each_key do |api_key|
       dns = DNSUpdater.new(api_key)
       domains = @conns[api_key][:domains]
+      live_records = dns.pull_live_records
 
+      # DreamHost Rate Limiting
+      if live_records['result'] == 'error'
+        return [1, live_records['reason']]
+      end
+          
       domains.each do |record, type|
         puts "Checking: #{record}"
-        domain_record = dns.get_record(record, type)
+        domain_record = dns.get_record(live_records, record, type)
+
         value = domain_record['value']
 
         until dns.check_record(value, wan_ip) == true
@@ -209,7 +227,8 @@ class Daemon
           dns.add_record(record, type, wan_ip)
           sleep(2)
 
-          value = dns.get_record(record, type)['value']
+          live_records = dns.pull_live_records
+          value = dns.get_record(live_records, record, type)['value']
           puts "Value: #{value}"
         end
 
@@ -224,8 +243,8 @@ class Daemon
 
     pid = fork do
       $stdin.reopen '/dev/null'
-      $stdout.reopen '/tmp/dnsupdater.log'
-      $stderr.reopen '/tmp/dnsupdater.log'
+      $stdout.reopen "#{@log}"
+      $stderr.reopen "#{@log}"
       trap(:HUP) do
         puts 'Ignoring SIGHUP'
       end
@@ -234,8 +253,13 @@ class Daemon
         exit
       end
       loop do
-        run
-        sleep(1800)
+        task = run
+        if task.first == 1
+          puts task.last
+          sleep(3660)
+        else
+          sleep(900)
+        end
       end
 
       puts 'DNS Updater Exiting.'
