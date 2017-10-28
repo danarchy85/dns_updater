@@ -3,15 +3,6 @@ require 'net/http'
 require 'optparse'
 require 'yaml'
 
-=begin
-
-Need to add an exeption handler for runaway requests:
-
-dns.pull_live_records
-=> {"data"=>"slow_down_bucko", "reason"=>"rate error: module dns used more than 100 times in 1 hour(s)", "result"=>"error"}
-
-=end
-
 @usage = %Q[
 Run without an argument to run DNS Updater once for configured domains.
 Run with [start] to run as a daemon with a 30 minute update interval.
@@ -85,7 +76,7 @@ class DNSUpdater
   end
 
   def self.version
-    version = '1.1.0'
+    version = '1.1.1'
   end
 
   # Creates a new DNS Updater config file
@@ -146,7 +137,7 @@ Ex: domain1.tld,domain2.tld: "
         domain_record = r if r['record'] == record && r['type'] == type
     end
 
-    return false if domain_record == nil
+    return false if domain_record == nil || domain_record.empty?
     domain_record
   end
 
@@ -230,6 +221,11 @@ class Daemon
           live_records = dns.pull_live_records
           value = dns.get_record(live_records, record, type)['value']
           puts "Value: #{value}"
+
+          if value == false || value.empty?
+            puts "Value was empty! Skipping #{record} since it may be newly registered."
+            break
+          end
         end
 
         puts "#{record} #{type} record: #{value}"
