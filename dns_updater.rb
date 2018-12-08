@@ -76,7 +76,7 @@ class DNSUpdater
   end
 
   def self.version
-    version = '1.1.2'
+    version = '1.1.3'
   end
 
   # Creates a new DNS Updater config file
@@ -309,7 +309,8 @@ if __FILE__ == $PROGRAM_NAME
   config = YAML.load_file(config_file)
   daemon = Daemon.new(config)
 
-  unless %w(status start stop restart).include?(ARGV.first)
+  if ARGV.empty?
+  # unless %w(status start stop restart).include?(ARGV.first)
     puts 'No action provided! Running once to update all domains!'
     daemon.run
     puts 'All finished!'
@@ -325,5 +326,8 @@ if __FILE__ == $PROGRAM_NAME
     daemon.stop
   when 'restart'
     daemon.restart
+  else
+    puts "ERROR: Invalid argument provided: #{ARGV.first}"
+    abort(@usage.lines[0..3].join)
   end
 end
