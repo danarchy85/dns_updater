@@ -76,7 +76,7 @@ class DNSUpdater
   end
 
   def self.version
-    version = '1.1.1'
+    version = '1.1.2'
   end
 
   # Creates a new DNS Updater config file
@@ -207,8 +207,7 @@ class Daemon
       domains.each do |record, type|
         puts "Checking: #{record}"
         domain_record = dns.get_record(live_records, record, type)
-
-        value = domain_record['value']
+        value = domain_record == false ? false : domain_record['value']
 
         until dns.check_record(value, wan_ip) == true
           puts "#{record}: DNS is not current!"
@@ -219,11 +218,13 @@ class Daemon
           sleep(2)
 
           live_records = dns.pull_live_records
-          value = dns.get_record(live_records, record, type)['value']
+          domain_record = dns.get_record(live_records, record, type)
+          value = domain_record == false ? false : domain_record['value']
           puts "Value: #{value}"
 
           if value == false || value.empty?
-            puts "Value was empty! Skipping #{record} since it may be newly registered."
+            puts "Failed to add record for: #{record}!"
+            puts " ! Skipping #{record} since it may be newly registered, or not registered at all..."
             break
           end
         end
