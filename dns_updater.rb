@@ -240,8 +240,8 @@ class Daemon
 
     pid = fork do
       $stdin.reopen '/dev/null'
-      $stdout.reopen "#{@log}"
-      $stderr.reopen "#{@log}"
+      $stdout.reopen '#{@log}'
+      $stderr.reopen '#{@log}'
       trap(:HUP) do
         puts 'Ignoring SIGHUP'
       end
